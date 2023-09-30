@@ -1,0 +1,60 @@
+trigger: none
+
+parameters:
+- name: imageType
+  displayName: Pool Image
+  type: string
+  default: UbuntuMinimal
+  values:
+  - Windows2019
+  - Windows2022
+  - Ubuntu2004
+  - Ubuntu2204
+  - UbuntuMinimal
+
+resources:
+  repositories:
+  - repository: runner-images
+    type: github
+    endpoint: DeveloperSolankiGitHub
+    name: RavindraSolanki/runner-images
+    ref: main
+
+variables:
+- name: ServiceConnectionName
+  value: CapgeminiCSDUK-sandbox-env
+- group: AppRegCSDUK
+
+pool:
+  vmImage: ubuntu-latest
+
+stages:
+- stage: generate_image
+  displayName: Generate Build-agent Image
+  jobs:
+  - job: build_image
+    displayName: Build Image
+    steps:
+    - checkout: runner-images
+      path: runner-images
+
+    - task: AzureCLI@2
+      displayName: Create Build Agent Image
+      inputs:
+        azureSubscription: ${{ variables.ServiceConnectionName }}
+        scriptType: pscore
+        scriptLocation: inlineScript
+        inlineScript: |
+          $currentSubscriptionId = (az account show | ConvertFrom-Json).id
+
+          Import-Module $(Build.SourcesDirectory)/helpers/GenerateResourcesAndImage.ps1
+
+          GenerateResourcesAndImage `
+            -SubscriptionId $currentSubscriptionId `
+            -ResourceGroupName ravi-solanki-experimentation-msbuildagent `
+            -AzureLocation westeurope `
+            -ImageType ${{ parameters.imageType }} `
+            -AzureClientId $(ClientId) `
+            -AzureClientSecret $(ClientSecret) `
+            -AzureTenantId $(TenantId) `
+            -Force
